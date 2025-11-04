@@ -1,0 +1,10 @@
+{
+    "cniVersion": "0.3.1",
+    "name": "ppnb",
+    "type": "ppnb-cni",
+    "network": "a11615ff-d055-486a-8bd5-576ec83be603",
+    "subnet": "b919c474-9119-4666-a27a-3e0ea50a4167",
+    "device": "af7edaae-a80e-4d08-961e-ca9a4e0f82cb",
+    "dataEthMac": "fa:16:3e:d2:ac:0b",
+    "bridge": "ppnb0"
+}
