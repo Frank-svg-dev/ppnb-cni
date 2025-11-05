@@ -37,6 +37,30 @@ func GetOpenStackNetworkClient() (*gophercloud.ServiceClient, error) {
 	return networkClient, nil
 }
 
+func GetOpenStackComputeClient() (*gophercloud.ServiceClient, error) {
+	ctx := context.Background()
+	providerClient, err := openstack.AuthenticatedClient(ctx, gophercloud.AuthOptions{
+		IdentityEndpoint: "http://keystone.openstack.svc.cluster.local/v3",
+		Username:         "admin",
+		Password:         "Admin@OPS20!8",
+		DomainName:       "Default",
+		TenantName:       "admin",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	computeClient, err := openstack.NewComputeV2(providerClient, gophercloud.EndpointOpts{
+		Region: "RegionOne",
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return computeClient, nil
+}
+
 func newPodIP(networkClient *gophercloud.ServiceClient,
 	netId, deviceId, dataMac, subentId string, allowPair []ports.AddressPair) (string, error) {
 	ctx := context.Background()
