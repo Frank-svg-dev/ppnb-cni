@@ -1,56 +1,56 @@
 package main
 
 import (
-	"fmt"
-	"os"
+	"log"
 
+	"github.com/Frank-svg-dev/ppnb-cni/pkg/ipam"
 	"github.com/Frank-svg-dev/ppnb-cni/utils"
-	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/attachinterfaces"
 )
 
 func main() {
-	instanceID, hostname := utils.GetInstanceUUID()
-
-	dyClient := utils.InitKubernetesClient()
-
-	crName := utils.CreateNodeNetworkCR(dyClient, instanceID, hostname)
-
-	Cidr := utils.GetNodeCidrNetwork(crName, dyClient)
-
-	err := utils.CreateIpamFile(Cidr)
-	if err != nil {
-		panic(err)
-	}
-
+	//初始化k8s客户端
+	kubeClient := utils.InitNodeNetworkCRClient()
 	networkClient, err := utils.GetOpenStackNetworkClient()
 	if err != nil {
-		panic(err)
+		log.Fatal(" 初始化k8s或openstack客户端失败  %v\n", err)
+	}
+	//获取虚机内部Instance_id与hostname，用于创建NodeNetwork
+	instanceID, hostname := utils.GetInstanceUUID()
+
+	//创建中继veth
+	if err := utils.InitHostVethPair(); err != nil {
+		log.Fatal(err)
 	}
 
-	//创建一个port， 挑一个IP， 然后从/var/lib/ppnb/cni里删除掉
+	//获取本节点NodeNetworkName CR资源
+	nodeNetworkName := utils.InitNodeNetworkCR(kubeClient, instanceID, hostname)
 
-	err = os.Remove(utils.IPAM_FILE_PATH + "123123")
+	//初始化IPAM
+	dataEthIP, err := ipam.InitNodeIPAM(kubeClient, nodeNetworkName)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	computeClient, err := utils.GetOpenStackComputeClient()
-
+	//给节点挂一个数据网卡
+	dataEthMac, dataEthGwIP, err := utils.InitNodeNetworkPortAttachToWorker(networkClient, dataEthIP, hostname, instanceID)
 	if err != nil {
-		panic(err)
-	}
-	//挂载Port就此一次
-	fmt.Println(networkClient, computeClient)
-
-	//根据cidr， 以及挂载port返回的网卡名，
-	attachOpts := attachinterfaces.CreateOpts{
-		PortID: p.ID,
-		// 或者可以用 NetworkID（部分环境支持），比如:
-		// NetworkID: networkID,
-		// FixedIP: &attachinterfaces.FixedIP{SubnetID: "subnet-uuid", IPAddress: "10.0.0.50"},
+		log.Fatal(err)
 	}
 
-	iface, err := attachinterfaces.Create(computeClient, serverID, attachOpts).Extract()
-	//以上步骤就此一次
+	//获取数据网卡的eth名称
+	dataEthName, err := utils.GetInterfaceByMAC(dataEthMac)
+	if err != nil {
+		log.Fatal(err)
+	}
 
+	//给数据网卡配置IP地址与路由表
+	if err := utils.InitDataEth(dataEthIP+"/32", dataEthGwIP, dataEthName); err != nil {
+		log.Fatal(err)
+	}
+	log.Println("初始化完成.....")
+
+	log.Printf("gRPC IPAM server starting on unix socket ")
+	if err := ipam.StartIPAMServer(); err != nil {
+		log.Fatal(err)
+	}
 }
