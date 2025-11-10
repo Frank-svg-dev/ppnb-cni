@@ -32,11 +32,7 @@ func InitNodeIPAM(nnClient *nodeNetworkClientSet.Clientset, nodeNetworkName stri
 			}
 		}
 
-		if nodeNetwork.Status.Ready == true {
-			//return
-		}
-
-		if nodeNetwork.Spec.CIDR != "" && nodeNetwork.Status.Ready == false {
+		if nodeNetwork.Spec.CIDR != "" {
 			err := CreateIpamFile(nodeNetwork.Spec.CIDR)
 			if err != nil {
 				log.Println("failed to create NodeNetwork local ip pool : %v", err)

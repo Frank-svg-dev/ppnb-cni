@@ -68,6 +68,7 @@ func (x *AllocateIPRequest) GetContainerId() string {
 type AllocateIPResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Ip            string                 `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"` // 分配的 IP
+	Gateway       string                 `protobuf:"bytes,2,opt,name=gateway,proto3" json:"gateway,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -105,6 +106,13 @@ func (*AllocateIPResponse) Descriptor() ([]byte, []int) {
 func (x *AllocateIPResponse) GetIp() string {
 	if x != nil {
 		return x.Ip
+	}
+	return ""
+}
+
+func (x *AllocateIPResponse) GetGateway() string {
+	if x != nil {
+		return x.Gateway
 	}
 	return ""
 }
@@ -212,9 +220,10 @@ const file_ipam_proto_rawDesc = "" +
 	"\n" +
 	"ipam.proto\x12\x04ipam\"6\n" +
 	"\x11AllocateIPRequest\x12!\n" +
-	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\"$\n" +
+	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\">\n" +
 	"\x12AllocateIPResponse\x12\x0e\n" +
-	"\x02ip\x18\x01 \x01(\tR\x02ip\"5\n" +
+	"\x02ip\x18\x01 \x01(\tR\x02ip\x12\x18\n" +
+	"\agateway\x18\x02 \x01(\tR\agateway\"5\n" +
 	"\x10ReleaseIPRequest\x12!\n" +
 	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\"G\n" +
 	"\x11ReleaseIPResponse\x12\x18\n" +

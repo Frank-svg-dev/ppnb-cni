@@ -45,8 +45,10 @@ func InitHostVethPair() error {
 
 	// 创建 veth pair
 	if err := netlink.LinkAdd(veth); err != nil {
-		log.Println("创建 veth 失败: %v", err)
-		return err
+		if !os.IsExist(err) {
+			log.Println("创建 veth 失败: %v", err)
+			return err
+		}
 	}
 
 	// 启动接口（等价于 ip link set up）
@@ -59,8 +61,13 @@ func InitHostVethPair() error {
 		return err
 	}
 	if err := netlink.AddrAdd(hostLink, addr); err != nil {
-		log.Println("配置 IP 失败: %v", err)
-		return err
+
+		if !os.IsExist(err) {
+
+			log.Println("配置 IP 失败: %v", err)
+			return err
+		}
+
 	}
 
 	if err := netlink.LinkSetUp(hostLink); err != nil {
@@ -68,6 +75,7 @@ func InitHostVethPair() error {
 		return err
 	}
 	if err := netlink.LinkSetUp(peerLink); err != nil {
+
 		log.Println("启动 %s 失败: %v", "ppnb_net", err)
 		return err
 	}
@@ -97,7 +105,7 @@ func InitDataEth(ipCIDR, gw, linkName string) error {
 		}
 	}
 
-	_, localNet, err := net.ParseCIDR(ipCIDR)
+	_, localNet, err := net.ParseCIDR(gw + "/32")
 	if err != nil {
 		log.Println(fmt.Errorf("解析目标网段失败: %w", err))
 		return err
@@ -126,6 +134,7 @@ func InitDataEth(ipCIDR, gw, linkName string) error {
 	}
 
 	gwIP := net.ParseIP(gw)
+	fmt.Println(gw)
 
 	// 3. 构造并添加路由
 	route := &netlink.Route{

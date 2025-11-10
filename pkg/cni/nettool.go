@@ -1,4 +1,4 @@
-package utils
+package cni
 
 import (
 	"crypto/rand"
@@ -146,7 +146,7 @@ func SetVethNsFd(veth *netlink.Veth, ns ns.NetNS) error {
 }
 
 func SetDefaultRouteToVeth(gwIP net.IP, veth netlink.Link) error {
-	_, gwNet, err := net.ParseCIDR("169.254.222.0/32")
+	_, gwNet, err := net.ParseCIDR(PPNBCNIVethDefaultGateway)
 	if err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func DelFromIpRule(podIp string) error {
 	rule.Table = 20
 	rule.Priority = 112
 	if err := netlink.RuleDel(rule); err != nil {
-		fmt.Println("添加 form ip  rule 失败:", err)
+		fmt.Println("删除 form ip  rule 失败:", err)
 		return err
 	}
 	return nil
@@ -238,7 +238,7 @@ func DelToIpRule(podIp string) error {
 
 	// 添加 rule
 	if err := netlink.RuleDel(rule); err != nil {
-		fmt.Println("添加 to ip rule 失败:", err)
+		fmt.Println("删除 to ip rule 失败:", err)
 		return err
 	}
 

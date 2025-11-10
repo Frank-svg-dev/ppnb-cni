@@ -3,21 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
-	"time"
 
 	"github.com/Frank-svg-dev/ppnb-cni/pkg/cni"
-	"github.com/Frank-svg-dev/ppnb-cni/pkg/ipam"
-	"github.com/Frank-svg-dev/ppnb-cni/utils"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
 	cniVersion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/backoff"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type NetConf struct {
@@ -27,6 +20,8 @@ type NetConf struct {
 	DeviceId   string `json:"device"`
 	DataEthMac string `json:"dataEthMac"`
 }
+
+const PPNBCniDefaultMTU = 1500
 
 func loadNetConf(bytes []byte) (*NetConf, error) {
 	n := &NetConf{}
@@ -44,41 +39,27 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-	//
-	//networkClient, err := utils.GetOpenStackNetworkClient()
-	//if err != nil {
-	//	fmt.Println("获取Openstack客户端失败, err: ", err.Error())
-	//	return err
-	//}
 
-	podIP, err := cni.IpApplicationFunc(args.ContainerID)
+	podIP, gwIP, err := cni.IpApplicationFunc(args.ContainerID)
 
 	if err != nil {
 		fmt.Println("申请IP失败, err: ", err.Error())
 		return err
 	}
 
-	//podIP, err := ipam.GetNodePodIp(networkClient, conf.DeviceId, conf.NetworkId, conf.DataEthMac, conf.SubnetId, args)
-	//if err != nil {
-	//	fmt.Println("申请IP失败, err: ", err.Error())
-	//	return err
-	//}
-
-	ifName := args.IfName
-
-	netns, err := ns.GetNS(args.Netns)
+	netNs, err := ns.GetNS(args.Netns)
 
 	if err != nil {
 		return err
 	}
 
-	err = utils.CreateBridgeAndCreateVethAndSetNetworkDeviceStatusAndSetVethMaster("169.254.222.0/32", ifName, podIP, 1500, netns)
+	err = cni.CreateBridgeAndCreateVethAndSetNetworkDeviceStatusAndSetVethMaster(gwIP, args.IfName, podIP, PPNBCniDefaultMTU, netNs)
 	if err != nil {
 		fmt.Println("执行创建网桥, 创建 veth 设备, 添加默认路由等操作失败, err: ", err.Error())
 		return err
 	}
 
-	_gw := net.ParseIP("169.254.222.0/32")
+	_gw := net.ParseIP(gwIP)
 
 	_, _podIP, _ := net.ParseCIDR(podIP)
 
@@ -118,23 +99,5 @@ func cmdDel(args *skel.CmdArgs) error {
 }
 
 func main() {
-
-	conn, err := grpc.Dial(
-		"unix://"+ipam.PPNBSocketPath,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithConnectParams(grpc.ConnectParams{
-			Backoff: backoff.Config{
-				BaseDelay:  50 * time.Millisecond,
-				Multiplier: 1.5,
-				MaxDelay:   1 * time.Second,
-			},
-			MinConnectTimeout: 3 * time.Second,
-		}),
-	)
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	defer conn.Close()
-
 	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, cniVersion.PluginSupports("0.1.0", "0.2.0", "0.3.0", "0.3.1", "0.4.0", "1.0.0"), "PPNB CNI plugin Version : 0.3.1")
 }

@@ -5,82 +5,12 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	path2 "path"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/Frank-svg-dev/ppnb-cni/utils"
-	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
 )
-
-func allocateIP(containerID string) (string, error) {
-	podIP, err := utils.RandomPickAndRemove(IPAM_FILE_PATH)
-	if err != nil {
-		return "", err
-	}
-
-	path := IPAM_CACHE_PATH + podIP
-	_, err = os.Create(path)
-	if err != nil {
-		return "", err
-	}
-
-	err = utils.WriteAndSyncFile(path, []byte(containerID), 0777)
-	if err != nil {
-		fmt.Println("为IP地址写入容器ID失败: err:", err.Error())
-		return "", err
-	}
-	return podIP, nil
-
-}
-func releaseIP(containerID string) error {
-	err := filepath.Walk(IPAM_CACHE_PATH, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-		data, _ := os.ReadFile(path)
-		if strings.Contains(string(data), containerID) {
-			podIP := path2.Base(path) + "/32"
-
-			err = utils.DelFromIpRule(podIP)
-			if err != nil {
-				fmt.Println("删除from ip rule失败, err: ", err.Error())
-				return err
-			}
-
-			err = utils.DelToIpRule(podIP)
-			if err != nil {
-				fmt.Println("删除 to ip rule 失败, err: ", err.Error())
-				return err
-			}
-
-			err = os.Remove(path)
-			if err != nil {
-				fmt.Println("清理ip 缓存文件失败, err:   , podpath: ", err.Error(), path)
-				return err
-			}
-
-			_, err := os.Create(IPAM_FILE_PATH + podIP)
-			if err != nil {
-				fmt.Println("restore not use ip failed, err: ", err.Error())
-				return err
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		fmt.Printf("filepath.Walk() returned %v\n", err)
-		return err
-	}
-
-	return nil
-
-}
 
 func newPodIP(networkClient *gophercloud.ServiceClient,
 	netId, deviceId, dataMac, subentId string, allowPair []ports.AddressPair) (string, error) {
@@ -124,7 +54,7 @@ func newPodIP(networkClient *gophercloud.ServiceClient,
 	return port.FixedIPs[0].IPAddress, nil
 }
 
-func GetNodePodIp(networkClient *gophercloud.ServiceClient, portId, netId, dataMac, subentId string, args *skel.CmdArgs) (string, error) {
+func GetNodePodIp(networkClient *gophercloud.ServiceClient, portId, netId, dataMac, subentId string, containerID string) (string, error) {
 	ctx := context.Background()
 
 	portsList, err := ports.Get(ctx, networkClient, portId).Extract()
@@ -159,7 +89,7 @@ func GetNodePodIp(networkClient *gophercloud.ServiceClient, portId, netId, dataM
 				return "", err
 			}
 
-			err = utils.WriteAndSyncFile(path, []byte(args.ContainerID), 0777)
+			err = utils.WriteAndSyncFile(path, []byte(containerID), 0777)
 			if err != nil {
 				fmt.Println("为IP地址写入容器ID失败: err:", err.Error())
 				return "", err
@@ -180,7 +110,7 @@ func GetNodePodIp(networkClient *gophercloud.ServiceClient, portId, netId, dataM
 		return "", err
 	}
 
-	err = utils.WriteAndSyncFile(path, []byte(args.ContainerID), 0777)
+	err = utils.WriteAndSyncFile(path, []byte(containerID), 0777)
 	if err != nil {
 		fmt.Println("为IP地址写入容器ID失败: err:", err.Error())
 		return "", err

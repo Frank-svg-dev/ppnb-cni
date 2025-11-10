@@ -18,6 +18,7 @@ message AllocateIPRequest {
 
 message AllocateIPResponse {
   string ip = 1;            // 分配的 IP
+  string gateway = 2;
 }
 
 message ReleaseIPRequest {

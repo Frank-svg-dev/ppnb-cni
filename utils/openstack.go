@@ -2,6 +2,8 @@ package utils
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -59,7 +61,7 @@ func GetOpenStackComputeClient() (*gophercloud.ServiceClient, error) {
 	return computeClient, nil
 }
 
-func InitNodeNetworkPortAttachToWorker(networkClient *gophercloud.ServiceClient, ipaddress, hostname, instanceId string) (string, string, error) {
+func InitNodeNetworkPortAttachToWorker(networkClient *gophercloud.ServiceClient, ipaddress, hostname, instanceId string, networkID, subnetID, securityGroupsID string) (string, string, string, error) {
 	ctx := context.Background()
 
 	computeClient, err := GetOpenStackComputeClient()
@@ -67,25 +69,54 @@ func InitNodeNetworkPortAttachToWorker(networkClient *gophercloud.ServiceClient,
 		log.Fatal(err)
 	}
 
+	subnetInfo, err := subnets.Get(ctx, networkClient, subnetID).Extract()
+	if err != nil {
+		log.Fatal(err)
+		return "", "", "", err
+	}
+
 	dataPort, err := ports.Create(ctx, networkClient, ports.CreateOpts{
-		NetworkID:      "xxxxxx",
+		NetworkID:      networkID,
 		Name:           "ppnb-vmport-" + hostname,
-		SecurityGroups: &[]string{"125411c2-a6f1-4ca7-a8cc-f5c050a32485"},
+		SecurityGroups: &[]string{securityGroupsID},
 		FixedIPs: []ports.IP{
 			{
-				SubnetID:  "xxxxxxxxxxx",
+				SubnetID:  subnetID,
 				IPAddress: ipaddress,
 			},
 		},
 	}).Extract()
 	if err != nil {
-		return "", "", err
-	}
+		if ue, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok && ue.Actual != 409 {
+			return "", "", "", err
+		}
 
-	subnetInfo, err := subnets.Get(ctx, networkClient, "xxxxxxxxxxx").Extract()
-	if err != nil {
-		log.Fatal(err)
-		return "", "", err
+		allPages, err := ports.List(networkClient, ports.ListOpts{
+			NetworkID: networkID,
+			FixedIPs: []ports.FixedIPOpts{
+				{
+					SubnetID:  subnetID,
+					IPAddress: ipaddress,
+				},
+			},
+		}).AllPages(ctx)
+
+		if err != nil {
+			log.Println("获取数据网卡port列表失败: err:", err.Error())
+			return "", "", "", err
+		}
+
+		allPorts, err := ports.ExtractPorts(allPages)
+		if err != nil {
+			log.Println("获取数据网卡port信息失败: err:", err.Error())
+			return "", "", "", err
+		}
+
+		if len(allPorts) == 0 {
+			return "", "", "", errors.New(fmt.Sprintf("no port found with IP %s", ipaddress))
+		}
+
+		return allPorts[0].MACAddress, subnetInfo.GatewayIP, allPorts[0].ID, nil
 	}
 
 	_, err = attachinterfaces.Create(ctx, computeClient, instanceId, attachinterfaces.CreateOpts{
@@ -93,9 +124,13 @@ func InitNodeNetworkPortAttachToWorker(networkClient *gophercloud.ServiceClient,
 	}).Extract()
 
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
-	return dataPort.MACAddress, subnetInfo.GatewayIP, nil
+	return dataPort.MACAddress, subnetInfo.GatewayIP, dataPort.ID, nil
+}
 
+func FindIPInAllowpairs(podIP string) error {
+
+	return nil
 }

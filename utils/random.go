@@ -24,7 +24,7 @@ func FirstIPFromCIDRStr(cidr string) string {
 	if idx == -1 {
 		return ""
 	}
-	return ipPart[:idx+1] + "1"
+	return ipPart[:idx+1] + "2"
 }
 
 func RandomPickAndRemove(dir string) (string, error) {

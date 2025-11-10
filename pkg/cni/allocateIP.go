@@ -5,16 +5,15 @@ import (
 	"log"
 	"time"
 
-	"github.com/Frank-svg-dev/ppnb-cni/pkg/ipam"
 	pb "github.com/Frank-svg-dev/ppnb-cni/rpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func IpApplicationFunc(containerID string) (string, error) {
+func IpApplicationFunc(containerID string) (string, string, error) {
 	conn, err := grpc.Dial(
-		"unix://"+ipam.PPNBSocketPath,
+		"unix://"+PPNBSocketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
@@ -27,7 +26,7 @@ func IpApplicationFunc(containerID string) (string, error) {
 	)
 	if err != nil {
 		log.Println("did not connect: %v\n", err)
-		return "", err
+		return "", "", err
 	}
 	defer conn.Close()
 
@@ -40,17 +39,17 @@ func IpApplicationFunc(containerID string) (string, error) {
 	})
 	if err != nil {
 		log.Println("AllocateIP failed: %v", err)
-		return "", err
+		return "", "", err
 	}
 
 	log.Printf("AllocateIP response: %v", resp)
-	return resp.Ip + "/32", nil
+	return resp.Ip, resp.Gateway, nil
 
 }
 
 func ReleaseIPFunc(containerID string) error {
 	conn, err := grpc.Dial(
-		"unix://"+ipam.PPNBSocketPath,
+		"unix://"+PPNBSocketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
