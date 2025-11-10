@@ -129,8 +129,3 @@ func InitNodeNetworkPortAttachToWorker(networkClient *gophercloud.ServiceClient,
 
 	return dataPort.MACAddress, subnetInfo.GatewayIP, dataPort.ID, nil
 }
-
-func FindIPInAllowpairs(podIP string) error {
-
-	return nil
-}
