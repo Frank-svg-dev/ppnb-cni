@@ -1,4 +1,4 @@
-package ipam
+package global
 
 import (
 	"context"
@@ -13,11 +13,6 @@ import (
 	"github.com/Frank-svg-dev/ppnb-cni/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
-const (
-	IPAM_FILE_PATH  = "/var/lib/ppnb/cni/"
-	IPAM_CACHE_PATH = "/var/run/ppnb/"
 )
 
 func InitNodeIPAM(nnClient *nodeNetworkClientSet.Clientset, nodeNetworkName string) (string, error) {
@@ -44,7 +39,7 @@ func InitNodeIPAM(nnClient *nodeNetworkClientSet.Clientset, nodeNetworkName stri
 				return "", errors.New("failed to find IP address from CIDR")
 			}
 
-			err = os.Remove(IPAM_FILE_PATH + dataEthIpaddress)
+			err = os.Remove(PPNBIPAM_FILE_PATH + dataEthIpaddress)
 			if err != nil {
 				log.Println("failed to remove IP address from file : %v", err)
 				return "", err
@@ -60,7 +55,7 @@ func InitNodeIPAM(nnClient *nodeNetworkClientSet.Clientset, nodeNetworkName stri
 }
 
 func CreateIpamFile(cidr string) error {
-	err := os.MkdirAll(IPAM_FILE_PATH, 0777)
+	err := os.MkdirAll(PPNBIPAM_FILE_PATH, 0777)
 	if err != nil {
 		if !os.IsExist(err) {
 			return err
@@ -87,14 +82,28 @@ func CreateIpamFile(cidr string) error {
 	}
 
 	for _, addr := range ips {
-		_, err := os.Create(filepath.Join(IPAM_FILE_PATH, addr))
+		_, err = os.Create(filepath.Join(PPNBIPAM_FILE_PATH, addr))
 		if err != nil {
 			if os.IsExist(err) {
 				continue
 			}
 			return err
 		}
+	}
 
+	entries, err := os.ReadDir(PPNBIPAM_CACHE_PATH)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		err := os.Remove(filepath.Join(PPNBIPAM_FILE_PATH, entry.Name()))
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return err
+		}
 	}
 
 	return nil

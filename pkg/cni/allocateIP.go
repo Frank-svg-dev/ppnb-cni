@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/Frank-svg-dev/ppnb-cni/pkg/global"
 	pb "github.com/Frank-svg-dev/ppnb-cni/rpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
@@ -13,7 +14,7 @@ import (
 
 func IpApplicationFunc(containerID string) (string, string, error) {
 	conn, err := grpc.Dial(
-		"unix://"+PPNBSocketPath,
+		"unix://"+global.PPNBSocketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
@@ -49,7 +50,7 @@ func IpApplicationFunc(containerID string) (string, string, error) {
 
 func ReleaseIPFunc(containerID string) error {
 	conn, err := grpc.Dial(
-		"unix://"+PPNBSocketPath,
+		"unix://"+global.PPNBSocketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{

@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Frank-svg-dev/ppnb-cni/pkg/global"
 	"github.com/Frank-svg-dev/ppnb-cni/utils"
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
@@ -62,7 +63,7 @@ func GetNodePodIp(networkClient *gophercloud.ServiceClient, portId, netId, dataM
 		return "", err
 	}
 
-	entries, err := os.ReadDir(IPAM_CACHE_PATH)
+	entries, err := os.ReadDir(global.PPNBIPAM_CACHE_PATH)
 	if err != nil {
 		return "", err
 	}
@@ -83,7 +84,7 @@ func GetNodePodIp(networkClient *gophercloud.ServiceClient, portId, netId, dataM
 		} else {
 			podIP := portsList.AllowedAddressPairs[i].IPAddress
 
-			path := IPAM_CACHE_PATH + podIP
+			path := global.PPNBIPAM_CACHE_PATH + podIP
 			_, err = os.Create(path)
 			if err != nil {
 				return "", err
@@ -104,7 +105,7 @@ func GetNodePodIp(networkClient *gophercloud.ServiceClient, portId, netId, dataM
 		return "", err
 	}
 
-	path := IPAM_CACHE_PATH + PodIP
+	path := global.PPNBIPAM_CACHE_PATH + PodIP
 	_, err = os.Create(path)
 	if err != nil {
 		return "", err

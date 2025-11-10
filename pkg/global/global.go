@@ -4,7 +4,6 @@ import (
 	"log"
 
 	"github.com/Frank-svg-dev/pam-cni/ClientSet/clientset/versioned"
-	"github.com/Frank-svg-dev/ppnb-cni/pkg/ipam"
 	"github.com/Frank-svg-dev/ppnb-cni/utils"
 	"github.com/gophercloud/gophercloud/v2"
 )
@@ -21,6 +20,13 @@ type PPNBCNIIPAMServe struct {
 	DataEthPort       string
 	DataEthGw         string
 }
+
+const (
+	PPNBSocketPath            = "/var/run/ppnb.sock"
+	PPNBIPAM_FILE_PATH        = "/var/lib/ppnb/cni/"
+	PPNBCNIVethDefaultGateway = "169.254.222.0/32"
+	PPNBIPAM_CACHE_PATH       = "/var/run/ppnb/"
+)
 
 var AppConfig *PPNBCNIIPAMServe
 
@@ -49,7 +55,7 @@ func NewPPNBCNIIPAMService(networkID, subnetID, securityGroupsID string) *PPNBCN
 	nodeNetworkName := utils.InitNodeNetworkCR(kubeClient, instanceID, hostname)
 
 	//初始化IPAM
-	dataEthIP, err := ipam.InitNodeIPAM(kubeClient, nodeNetworkName)
+	dataEthIP, err := InitNodeIPAM(kubeClient, nodeNetworkName)
 	if err != nil {
 		log.Fatal(err)
 	}

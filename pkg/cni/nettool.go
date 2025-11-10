@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/Frank-svg-dev/ppnb-cni/pkg/global"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -146,7 +147,7 @@ func SetVethNsFd(veth *netlink.Veth, ns ns.NetNS) error {
 }
 
 func SetDefaultRouteToVeth(gwIP net.IP, veth netlink.Link) error {
-	_, gwNet, err := net.ParseCIDR(PPNBCNIVethDefaultGateway)
+	_, gwNet, err := net.ParseCIDR(global.PPNBCNIVethDefaultGateway)
 	if err != nil {
 		return err
 	}

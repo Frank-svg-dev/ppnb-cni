@@ -4,8 +4,8 @@ import (
 	"flag"
 	"log"
 
-	"github.com/Frank-svg-dev/ppnb-cni/pkg/cni"
 	"github.com/Frank-svg-dev/ppnb-cni/pkg/global"
+	"github.com/Frank-svg-dev/ppnb-cni/pkg/ipam"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 	global.AppConfig = global.NewPPNBCNIIPAMService(networkID, subnetID, securityGroupsID)
 
 	log.Printf("gRPC IPAM server starting on unix socket ")
-	if err := cni.StartIPAMServer(); err != nil {
+	if err := ipam.StartIPAMServer(); err != nil {
 		log.Fatal(err)
 	}
 }

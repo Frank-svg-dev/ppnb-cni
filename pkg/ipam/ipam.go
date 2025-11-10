@@ -1,4 +1,4 @@
-package cni
+package ipam
 
 import (
 	"context"
@@ -12,26 +12,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Frank-svg-dev/ppnb-cni/pkg/cni"
 	"github.com/Frank-svg-dev/ppnb-cni/pkg/global"
-	"github.com/Frank-svg-dev/ppnb-cni/pkg/ipam"
 	pb "github.com/Frank-svg-dev/ppnb-cni/rpc"
 	"github.com/Frank-svg-dev/ppnb-cni/utils"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
 	"google.golang.org/grpc"
 )
 
-const PPNBSocketPath = "/var/run/ppnb.sock"
-const PPNBIPAM_FILE_PATH string = "/var/lib/ppnb/cni/"
-const PPNBCNIVethDefaultGateway = "169.254.222.0/32"
-const PPNBIPAM_CACHE_PATH = "/var/run/ppnb/"
-
 type server struct {
 	pb.UnimplementedIPAMServer
-	//ipPool map[string]string
 }
 
 func (s *server) AllocateIP(ctx context.Context, req *pb.AllocateIPRequest) (*pb.AllocateIPResponse, error) {
-	podIP, err := utils.RandomPickAndRemove(PPNBIPAM_FILE_PATH)
+	podIP, err := utils.RandomPickAndRemove(global.PPNBIPAM_FILE_PATH)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +39,7 @@ func (s *server) AllocateIP(ctx context.Context, req *pb.AllocateIPRequest) (*pb
 	for _, aap := range portInfo.AllowedAddressPairs {
 		if aap.IPAddress == podIP {
 
-			path := ipam.IPAM_CACHE_PATH + podIP
+			path := global.PPNBIPAM_CACHE_PATH + podIP
 			_, err = os.Create(path)
 			if err != nil {
 				return nil, err
@@ -59,7 +53,7 @@ func (s *server) AllocateIP(ctx context.Context, req *pb.AllocateIPRequest) (*pb
 
 			return &pb.AllocateIPResponse{
 				Ip:      podIP + "/32",
-				Gateway: PPNBCNIVethDefaultGateway,
+				Gateway: global.PPNBCNIVethDefaultGateway,
 			}, nil
 		}
 	}
@@ -79,7 +73,7 @@ func (s *server) AllocateIP(ctx context.Context, req *pb.AllocateIPRequest) (*pb
 		},
 	}).Extract()
 
-	path := PPNBIPAM_CACHE_PATH + podIP
+	path := global.PPNBIPAM_CACHE_PATH + podIP
 	_, err = os.Create(path)
 	if err != nil {
 		return nil, err
@@ -93,12 +87,12 @@ func (s *server) AllocateIP(ctx context.Context, req *pb.AllocateIPRequest) (*pb
 
 	return &pb.AllocateIPResponse{
 		Ip:      podIP + "/32",
-		Gateway: PPNBCNIVethDefaultGateway,
+		Gateway: global.PPNBCNIVethDefaultGateway,
 	}, nil
 }
 
 func (s *server) ReleaseIP(ctx context.Context, req *pb.ReleaseIPRequest) (*pb.ReleaseIPResponse, error) {
-	err := filepath.Walk(PPNBIPAM_CACHE_PATH, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(global.PPNBIPAM_CACHE_PATH, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
@@ -109,13 +103,13 @@ func (s *server) ReleaseIP(ctx context.Context, req *pb.ReleaseIPRequest) (*pb.R
 			podIP := podIPPath + "/32"
 			fmt.Println("podIP:", podIP)
 
-			err = DelFromIpRule(ipAddress + "/32")
+			err = cni.DelFromIpRule(ipAddress + "/32")
 			if err != nil {
 				fmt.Println("删除from ip rule失败, err: ", err.Error())
 				return err
 			}
 
-			err = DelToIpRule(ipAddress + "/32")
+			err = cni.DelToIpRule(ipAddress + "/32")
 			if err != nil {
 				fmt.Println("删除 to ip rule 失败, err: ", err.Error())
 				return err
@@ -130,7 +124,7 @@ func (s *server) ReleaseIP(ctx context.Context, req *pb.ReleaseIPRequest) (*pb.R
 
 			fmt.Println("podIPpath: ", podIPPath)
 			fmt.Println("ipaddress: ", ipAddress)
-			_, err := os.Create(PPNBIPAM_FILE_PATH + ipAddress)
+			_, err := os.Create(global.PPNBIPAM_FILE_PATH + ipAddress)
 			if err != nil {
 				fmt.Println("restore not use ip failed, err: ", err.Error())
 				return err
@@ -149,15 +143,15 @@ func (s *server) ReleaseIP(ctx context.Context, req *pb.ReleaseIPRequest) (*pb.R
 }
 
 func StartIPAMServer() error {
-	if _, err := os.Stat(PPNBSocketPath); err == nil {
-		err := os.Remove(PPNBSocketPath)
+	if _, err := os.Stat(global.PPNBSocketPath); err == nil {
+		err := os.Remove(global.PPNBSocketPath)
 		if err != nil {
 			log.Println("创建socket失败")
 			return err
 		}
 	}
 
-	lis, err := net.Listen("unix", PPNBSocketPath)
+	lis, err := net.Listen("unix", global.PPNBSocketPath)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -166,7 +160,7 @@ func StartIPAMServer() error {
 	s := grpc.NewServer()
 	pb.RegisterIPAMServer(s, &server{})
 
-	log.Printf("gRPC IPAM server running on unix socket %s", PPNBSocketPath)
+	log.Printf("gRPC IPAM server running on unix socket %s", global.PPNBSocketPath)
 	if err := s.Serve(lis); err != nil {
 		log.Println("failed to serve: %v", err)
 		return err
