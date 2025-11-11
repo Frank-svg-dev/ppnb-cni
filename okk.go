@@ -1,34 +1,29 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
+
+	"github.com/Frank-svg-dev/ppnb-cni/utils"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/subnets"
 )
 
 func main() {
-	cidr := "10.10.1.1/24"
-
-	// 1️⃣ 解析 CIDR
-	ip, ipnet, err := net.ParseCIDR(cidr)
+	client, err := utils.GetOpenStackNetworkClient()
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
-
-	// 用 ipnet 的网络部分
-	ip = ip.Mask(ipnet.Mask)
-
-	var ips []string
-	for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
-		ips = append(ips, ip.String())
+	allPages, err := subnets.List(client, subnets.ListOpts{}).AllPages(context.Background())
+	if err != nil {
+		fmt.Println(err)
 	}
-
-	// 去掉网络地址和广播地址
-	if len(ips) > 2 {
-		ips = ips[1 : len(ips)-1]
+	allSubnets, err := subnets.ExtractSubnets(allPages)
+	if err != nil {
+		fmt.Println(err)
 	}
-
-	for _, addr := range ips {
-		fmt.Println(addr)
+	for _, subnet := range allSubnets {
+		fmt.Println(subnet)
 	}
 }
 

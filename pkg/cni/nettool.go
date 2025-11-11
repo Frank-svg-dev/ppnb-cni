@@ -219,8 +219,8 @@ func DelFromIpRule(podIp string) error {
 	_, src, _ := net.ParseCIDR(podIp)
 	rule := netlink.NewRule()
 	rule.Src = src
-	rule.Table = 20
-	rule.Priority = 112
+	rule.Table = global.PPNBIpRuleDefaultTable
+	rule.Priority = global.PPNBIpRuleDefaultTablePriority
 	if err := netlink.RuleDel(rule); err != nil {
 		fmt.Println("删除 form ip  rule 失败:", err)
 		return err
@@ -231,7 +231,7 @@ func DelFromIpRule(podIp string) error {
 func DelToIpRule(podIp string) error {
 	_, dst, _ := net.ParseCIDR(podIp)
 
-	// 创建 rule
+	// 删除 rule
 	rule := netlink.NewRule()
 	rule.Dst = dst
 	rule.Table = unix.RT_TABLE_MAIN
@@ -257,8 +257,8 @@ func addFromIpRule(podIp string) error {
 	// 创建 rule
 	rule := netlink.NewRule()
 	rule.Src = src
-	rule.Table = 20
-	rule.Priority = 112
+	rule.Table = global.PPNBIpRuleDefaultTable
+	rule.Priority = global.PPNBIpRuleDefaultTablePriority
 
 	// 添加 rule
 	if err := netlink.RuleAdd(rule); err != nil {

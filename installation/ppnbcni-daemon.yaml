@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ppnbcni
+  namespace: kube-system
+  labels:
+    k8s-app: ppnbcni
+    app.kubernetes.io/name: ppnbcni-agent
+spec:
+  selector:
+    matchLabels:
+      k8s-app: ppnbcni
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ppnbcni-agent
+        app.kubernetes.io/part-of: ppnbcni
+        k8s-app: ppnbcni
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  k8s-app: ppnbcni
+              topologyKey: kubernetes.io/hostname
+      serviceAccountName: ppnbcnicontroller-manager
+      automountServiceAccountToken: true
+      hostNetwork: true
+      containers:
+      - args:
+          - --network-id=9b7a0836-c84c-4e6a-ba0c-9f80de5c4e79
+          - --subnet-id=31427f0a-39fb-4fbc-b3a7-62692f1f904f
+          - --security-group-id=125411c2-a6f1-4ca7-a8cc-f5c050a32485
+        command:
+          - /ppnbcni-daemon
+        name: ppnbcni-agent
+        volumeMounts:
+          - mountPath: /opt/cni/bin
+            name: cni-path
+          - mountPath: /etc/cni/net.d
+            name: etc-cni-netd
+          - mountPath: /var/run/ppnb
+            name: ppnb-run
+          - mountPath: /var/run
+            name: ppnb-runsock
+          - mountPath: /var/lib/ppnb/cni
+            name: ppnb-libcni
+        env:
+          - name: OS_APPLICATION_CREDENTIAL_ID
+            valueFrom:
+              secretKeyRef:
+                key: application-credential-id
+                name: auth-opts
+          - name: OS_APPLICATION_CREDENTIAL_SECRET
+            valueFrom:
+              secretKeyRef:
+                key: application-credential-secret
+                name: auth-opts
+          - name: OS_AUTH_URL
+            valueFrom:
+              secretKeyRef:
+                key: auth-url
+                name: auth-opts
+          - name: OS_REGION_NAME
+            valueFrom:
+              secretKeyRef:
+                key: region
+                name: auth-opts
+
+        image: core.harbor.domain/library/ppnbcni-daemon:v1
+        imagePullPolicy: IfNotPresent
+        lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /cni-uninstall.sh
+        resources:
+          limits:
+            cpu: 500m
+            memory: 500M
+          requests:
+            cpu: 100m
+            memory: 64M
+        securityContext:
+            privileged: true
+      initContainers:
+        - name: cni-install
+          command:
+            - /install-plugin.sh
+          image: core.harbor.domain/library/ppnbcni-daemon:v1
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 10Mi
+          volumeMounts:
+            - mountPath: /host/opt/cni/bin
+              name: cni-path
+            - mountPath: /host/etc/cni/net.d
+              name: etc-cni-netd
+      tolerations:
+      - operator: Exists
+      volumes:
+        - hostPath:
+            path: /opt/cni/bin
+            type: DirectoryOrCreate
+          name: cni-path
+        - hostPath:
+            path: /etc/cni/net.d
+            type: DirectoryOrCreate
+          name: etc-cni-netd
+        - hostPath:
+            path: /var/run/ppnb
+            type: DirectoryOrCreate
+          name: ppnb-run
+        - hostPath:
+            path: /var/lib/ppnb/cni
+            type: DirectoryOrCreate
+          name: ppnb-libcni
+        - hostPath:
+            path: /var/run
+            type: DirectoryOrCreate
+          name: ppnb-runsock

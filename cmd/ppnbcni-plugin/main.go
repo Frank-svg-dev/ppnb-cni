@@ -15,10 +15,6 @@ import (
 
 type NetConf struct {
 	CNIVersion string `json:"cniVersion"`
-	SubnetId   string `json:"subnet"`
-	NetworkId  string `json:"network"`
-	DeviceId   string `json:"device"`
-	DataEthMac string `json:"dataEthMac"`
 }
 
 const PPNBCniDefaultMTU = 1500

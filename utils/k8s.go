@@ -8,11 +8,11 @@ import (
 	nodeNetworkAPI "github.com/Frank-svg-dev/pam-cni/pkg/apis/network.ppnb.io/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/rest"
 )
 
 func InitNodeNetworkCRClient() *nodeNetworkClientSet.Clientset {
-	config, err := clientcmd.BuildConfigFromFlags("", clientcmd.RecommendedHomeFile)
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		log.Fatalf("failed to load kubeconfig: %v", err)
 	}

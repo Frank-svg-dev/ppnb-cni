@@ -22,10 +22,12 @@ type PPNBCNIIPAMServe struct {
 }
 
 const (
-	PPNBSocketPath            = "/var/run/ppnb.sock"
-	PPNBIPAM_FILE_PATH        = "/var/lib/ppnb/cni/"
-	PPNBCNIVethDefaultGateway = "169.254.222.0/32"
-	PPNBIPAM_CACHE_PATH       = "/var/run/ppnb/"
+	PPNBSocketPath                 = "/var/run/ppnb.sock"
+	PPNBIPAM_FILE_PATH             = "/var/lib/ppnb/cni/"
+	PPNBCNIVethDefaultGateway      = "169.254.222.0/32"
+	PPNBIPAM_CACHE_PATH            = "/var/run/ppnb/"
+	PPNBIpRuleDefaultTable         = 50
+	PPNBIpRuleDefaultTablePriority = 112
 )
 
 var AppConfig *PPNBCNIIPAMServe

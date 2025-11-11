@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
@@ -15,19 +16,26 @@ import (
 
 func GetOpenStackNetworkClient() (*gophercloud.ServiceClient, error) {
 	ctx := context.Background()
-	providerClient, err := openstack.AuthenticatedClient(ctx, gophercloud.AuthOptions{
-		IdentityEndpoint: "http://keystone.openstack.svc.cluster.local/v3",
-		Username:         "admin",
-		Password:         "Admin@OPS20!8",
-		DomainName:       "Default",
-		TenantName:       "admin",
-	})
+
+	//providerClient, err := openstack.AuthenticatedClient(ctx, gophercloud.AuthOptions{
+	//	ApplicationCredentialName:   os.Getenv("OS_APPLICATION_CREDENTIAL_ID"),
+	//	ApplicationCredentialSecret: os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET"),
+	//	IdentityEndpoint:            "http://keystone.openstack.svc.cluster.local/v3",
+	//	//Username:                    "admin",
+	//	//Password:                    "Admin@OPS20!8",
+	//	//DomainName:                  "Default",
+	//	//TenantName:                  "admin",
+	//})
+
+	opts, err := openstack.AuthOptionsFromEnv()
+	providerClient, err := openstack.AuthenticatedClient(ctx, opts)
+
 	if err != nil {
 		return nil, err
 	}
 
 	networkClient, err := openstack.NewNetworkV2(providerClient, gophercloud.EndpointOpts{
-		Region: "RegionOne",
+		Region: os.Getenv("OS_REGION_NAME"),
 	})
 
 	if err != nil {
@@ -39,19 +47,14 @@ func GetOpenStackNetworkClient() (*gophercloud.ServiceClient, error) {
 
 func GetOpenStackComputeClient() (*gophercloud.ServiceClient, error) {
 	ctx := context.Background()
-	providerClient, err := openstack.AuthenticatedClient(ctx, gophercloud.AuthOptions{
-		IdentityEndpoint: "http://keystone.openstack.svc.cluster.local/v3",
-		Username:         "admin",
-		Password:         "Admin@OPS20!8",
-		DomainName:       "Default",
-		TenantName:       "admin",
-	})
+	opts, err := openstack.AuthOptionsFromEnv()
+	providerClient, err := openstack.AuthenticatedClient(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	computeClient, err := openstack.NewComputeV2(providerClient, gophercloud.EndpointOpts{
-		Region: "RegionOne",
+		Region: os.Getenv("OS_REGION_NAME"),
 	})
 
 	if err != nil {
