@@ -2,32 +2,40 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math/rand"
+	"log"
 	"os"
-	"time"
 
-	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/attachinterfaces"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/subnets"
 )
 
 func GetOpenStackNetworkClient() (*gophercloud.ServiceClient, error) {
 	ctx := context.Background()
-	providerClient, err := openstack.AuthenticatedClient(ctx, gophercloud.AuthOptions{
-		IdentityEndpoint: "http://keystone.openstack.svc.cluster.local/v3",
-		Username:         "admin",
-		Password:         "Admin@OPS20!8",
-		DomainName:       "Default",
-		TenantName:       "admin",
-	})
+
+	//providerClient, err := openstack.AuthenticatedClient(ctx, gophercloud.AuthOptions{
+	//	ApplicationCredentialName:   os.Getenv("OS_APPLICATION_CREDENTIAL_ID"),
+	//	ApplicationCredentialSecret: os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET"),
+	//	IdentityEndpoint:            "http://keystone.openstack.svc.cluster.local/v3",
+	//	//Username:                    "admin",
+	//	//Password:                    "Admin@OPS20!8",
+	//	//DomainName:                  "Default",
+	//	//TenantName:                  "admin",
+	//})
+
+	opts, err := openstack.AuthOptionsFromEnv()
+	providerClient, err := openstack.AuthenticatedClient(ctx, opts)
+
 	if err != nil {
 		return nil, err
 	}
 
 	networkClient, err := openstack.NewNetworkV2(providerClient, gophercloud.EndpointOpts{
-		Region: "RegionOne",
+		Region: os.Getenv("OS_REGION_NAME"),
 	})
 
 	if err != nil {
@@ -37,118 +45,90 @@ func GetOpenStackNetworkClient() (*gophercloud.ServiceClient, error) {
 	return networkClient, nil
 }
 
-func newPodIP(networkClient *gophercloud.ServiceClient,
-	netId, deviceId, dataMac, subentId string, allowPair []ports.AddressPair) (string, error) {
+func GetOpenStackComputeClient() (*gophercloud.ServiceClient, error) {
+	ctx := context.Background()
+	opts, err := openstack.AuthOptionsFromEnv()
+	providerClient, err := openstack.AuthenticatedClient(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	computeClient, err := openstack.NewComputeV2(providerClient, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return computeClient, nil
+}
+
+func InitNodeNetworkPortAttachToWorker(networkClient *gophercloud.ServiceClient, ipaddress, hostname, instanceId string, networkID, subnetID, securityGroupsID string) (string, string, string, error) {
 	ctx := context.Background()
 
-	//subnet, err := subnets.Get(ctx, networkClient, id).Extract()
-	//if err != nil {
-	//	return subnets.Subnet{}
-	//}
-	rand.Seed(time.Now().UnixNano()) // 初始化随机种子
-	portname := fmt.Sprintf("%05d", rand.Intn(100000))
+	computeClient, err := GetOpenStackComputeClient()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	port, err := ports.Create(ctx, networkClient, ports.CreateOpts{
-		NetworkID:   netId,
-		Name:        "ppnb-podip-" + portname,
-		DeviceID:    deviceId,
-		DeviceOwner: "network:secondary",
-		//SecurityGroups: &[]string{"125411c2-a6f1-4ca7-a8cc-f5c050a32485"},
+	subnetInfo, err := subnets.Get(ctx, networkClient, subnetID).Extract()
+	if err != nil {
+		log.Fatal(err)
+		return "", "", "", err
+	}
+
+	dataPort, err := ports.Create(ctx, networkClient, ports.CreateOpts{
+		NetworkID:      networkID,
+		Name:           "ppnb-vmport-" + hostname,
+		SecurityGroups: &[]string{securityGroupsID},
 		FixedIPs: []ports.IP{
 			{
-				SubnetID: subentId,
+				SubnetID:  subnetID,
+				IPAddress: ipaddress,
 			},
 		},
 	}).Extract()
 	if err != nil {
-		return "", err
-	}
-
-	ap := ports.AddressPair{
-		IPAddress:  port.FixedIPs[0].IPAddress,
-		MACAddress: dataMac,
-	}
-
-	allowPair = append(allowPair, ap)
-
-	err = ports.Update(ctx, networkClient, deviceId, ports.UpdateOpts{AllowedAddressPairs: &allowPair}).Err
-	if err != nil {
-		return "", err
-	}
-
-	return port.FixedIPs[0].IPAddress, nil
-}
-
-func GetNodePodIp(networkClient *gophercloud.ServiceClient, portId, netId, dataMac, subentId string, args *skel.CmdArgs) (string, error) {
-	ctx := context.Background()
-	path := "/run/ppnb/"
-
-	portsList, err := ports.Get(ctx, networkClient, portId).Extract()
-	if err != nil {
-		return "", err
-	}
-
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return "", err
-	}
-
-	var localIPs []string
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			localIPs = append(localIPs, entry.Name())
+		if ue, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok && ue.Actual != 409 {
+			return "", "", "", err
 		}
-	}
 
-	localIp := makeSet(localIPs)
+		allPages, err := ports.List(networkClient, ports.ListOpts{
+			NetworkID: networkID,
+			FixedIPs: []ports.FixedIPOpts{
+				{
+					SubnetID:  subnetID,
+					IPAddress: ipaddress,
+				},
+			},
+		}).AllPages(ctx)
 
-	for i := 0; i < len(portsList.AllowedAddressPairs); i++ {
-		if _, ok := localIp[portsList.AllowedAddressPairs[i].IPAddress]; ok {
-			continue
-		} else {
-			podIP := portsList.AllowedAddressPairs[i].IPAddress
-
-			path := "/run/ppnb/" + podIP
-			_, err = os.Create(path)
-			if err != nil {
-				return "", err
-			}
-
-			err = WriteAndSyncFile(path, []byte(args.ContainerID), 0777)
-			if err != nil {
-				fmt.Println("为IP地址写入容器ID失败: err:", err.Error())
-				return "", err
-			}
-
-			return podIP + "/32", nil
+		if err != nil {
+			log.Println("获取数据网卡port列表失败: err:", err.Error())
+			return "", "", "", err
 		}
+
+		allPorts, err := ports.ExtractPorts(allPages)
+		if err != nil {
+			log.Println("获取数据网卡port信息失败: err:", err.Error())
+			return "", "", "", err
+		}
+
+		if len(allPorts) == 0 {
+			return "", "", "", errors.New(fmt.Sprintf("no port found with IP %s", ipaddress))
+		}
+
+		return allPorts[0].MACAddress, subnetInfo.GatewayIP, allPorts[0].ID, nil
 	}
-	//netId, deviceId, dataMac, subentId string,
-	PodIP, err := newPodIP(networkClient, netId, portId, dataMac, subentId, portsList.AllowedAddressPairs)
+
+	_, err = attachinterfaces.Create(ctx, computeClient, instanceId, attachinterfaces.CreateOpts{
+		PortID: dataPort.ID,
+	}).Extract()
+
 	if err != nil {
-		return "", err
+		return "", "", "", err
 	}
 
-	path = "/run/ppnb/" + PodIP
-	_, err = os.Create(path)
-	if err != nil {
-		return "", err
-	}
-
-	err = WriteAndSyncFile(path, []byte(args.ContainerID), 0777)
-	if err != nil {
-		fmt.Println("为IP地址写入容器ID失败: err:", err.Error())
-		return "", err
-	}
-
-	return PodIP + "/32", nil
-}
-
-func makeSet(list []string) map[string]struct{} {
-	set := make(map[string]struct{}, len(list))
-	for _, v := range list {
-		set[v] = struct{}{}
-	}
-	return set
+	return dataPort.MACAddress, subnetInfo.GatewayIP, dataPort.ID, nil
 }

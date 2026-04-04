@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package ipam;
+
+option go_package = "./";
+
+service IPAM {
+  // 分配 IP
+  rpc AllocateIP(AllocateIPRequest) returns (AllocateIPResponse);
+
+  // 释放 IP
+  rpc ReleaseIP(ReleaseIPRequest) returns (ReleaseIPResponse);
+}
+
+message AllocateIPRequest {
+  string container_id = 1;  // CNI 请求的容器 ID
+}
+
+message AllocateIPResponse {
+  string ip = 1;            // 分配的 IP
+  string gateway = 2;
+}
+
+message ReleaseIPRequest {
+  string container_id = 1;
+}
+
+message ReleaseIPResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+
